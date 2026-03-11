@@ -1,17 +1,26 @@
-# belair
+# Belair
 
-A new Flutter project.
+A multi-platform local file transfer application built with Flutter.
 
-## Getting Started
+## Features
+- Automatic device discovery using UDP broadcasting.
+- High-speed file transfer acting as both client and server.
+- Support for manual IP entry.
+- Cross-platform support (Windows, macOS, Linux, Android, iOS).
 
-This project is a starting point for a Flutter application.
+## Building the Application
 
-A few resources to get you started if this is your first Flutter project:
+Build scripts are available in the `scripts` directory and require Node.js.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+### Windows Build
+Generates a zipped release of the Windows application.
+```bash
+node scripts/build-windows.js
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### Android Build
+Generates a signed APK (requires the dummy key at `D:\AndroidPlayStore\Dummy`).
+```bash
+node scripts/build-android.js
+```
+The version name and version code are automatically derived from `pubspec.yaml`. For example, `1.0.3` becomes versionCode `10003`.
