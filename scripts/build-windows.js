@@ -9,12 +9,17 @@ function getVersion() {
 }
 
 const version = getVersion();
-const zipName = `belair-v${version}.zip`;
+const deployDir = 'deploy';
+const zipName = path.join(deployDir, `belair-v${version}.zip`);
 const buildDir = path.join('build', 'windows', 'x64', 'runner', 'Release');
 
 console.log(`Building Windows Release v${version}...`);
 
 try {
+    if (!fs.existsSync(deployDir)) {
+        fs.mkdirSync(deployDir);
+    }
+
     execSync('flutter build windows --release', { stdio: 'inherit' });
     
     if (fs.existsSync(zipName)) {

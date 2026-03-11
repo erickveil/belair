@@ -18,13 +18,18 @@ function getVersionCode(version) {
 
 const version = getVersion();
 const versionCode = getVersionCode(version);
-const apkName = `belair-v${version}.apk`;
+const deployDir = 'deploy';
+const apkName = path.join(deployDir, `belair-v${version}.apk`);
 const dummyKeyPath = 'D:\\AndroidPlayStore\\Dummy\\key.properties';
 const targetKeyPath = path.join('android', 'key.properties');
 
 console.log(`Building Android APK v${version} (versionCode: ${versionCode})...`);
 
 try {
+    if (!fs.existsSync(deployDir)) {
+        fs.mkdirSync(deployDir);
+    }
+
     // Ensure key.properties is in place for signing
     if (fs.existsSync(dummyKeyPath)) {
         console.log(`Copying and fixing signing properties from ${dummyKeyPath}...`);
