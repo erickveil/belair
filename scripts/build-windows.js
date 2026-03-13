@@ -8,6 +8,24 @@ function getVersion() {
     return versionMatch ? versionMatch[1] : '0.0.1';
 }
 
+function safeRemove(filePath) {
+    if (fs.existsSync(filePath)) {
+        fs.rmSync(filePath, { recursive: true, force: true });
+    }
+}
+
+function cleanDeployArtifacts(dirPath, matcher) {
+    if (!fs.existsSync(dirPath)) {
+        return;
+    }
+
+    for (const name of fs.readdirSync(dirPath)) {
+        if (matcher.test(name)) {
+            safeRemove(path.join(dirPath, name));
+        }
+    }
+}
+
 const version = getVersion();
 const deployDir = 'deploy';
 const zipName = path.join(deployDir, `belair-v${version}.zip`);
@@ -25,6 +43,9 @@ try {
         fs.mkdirSync(deployDir);
     }
 
+    // Remove old Windows deployment outputs before building.
+    cleanDeployArtifacts(deployDir, /^belair-v.*\.(zip|exe)$/i);
+
     // Keep the runner icon in sync with the canonical design ICO.
     if (!fs.existsSync(sourceIcoIcon)) {
         throw new Error(`Missing source ICO icon: ${sourceIcoIcon}`);
@@ -32,9 +53,7 @@ try {
     fs.copyFileSync(sourceIcoIcon, runnerIcon);
 
     // Force a relink so the executable always embeds the latest icon.
-    if (fs.existsSync(windowsBuildRoot)) {
-        fs.rmSync(windowsBuildRoot, { recursive: true, force: true });
-    }
+    safeRemove(windowsBuildRoot);
 
     execSync('flutter build windows --release', { stdio: 'inherit' });
 
@@ -45,10 +64,6 @@ try {
     // Copy to a versioned path so icon inspection can bypass shell path cache.
     fs.copyFileSync(builtExe, exeName);
     
-    if (fs.existsSync(zipName)) {
-        fs.unlinkSync(zipName);
-    }
-
     console.log(`Zipping to ${zipName}...`);
     // Using PowerShell to zip for simplicity in a Windows environment
     const zipCommand = `powershell.exe -Command "Compress-Archive -Path '${buildDir}\\*' -DestinationPath '${zipName}'"`;

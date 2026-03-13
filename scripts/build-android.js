@@ -16,6 +16,24 @@ function getVersionCode(version) {
     return major * 10000 + minor * 100 + patch;
 }
 
+function safeRemove(filePath) {
+    if (fs.existsSync(filePath)) {
+        fs.rmSync(filePath, { recursive: true, force: true });
+    }
+}
+
+function cleanDeployArtifacts(dirPath, matcher) {
+    if (!fs.existsSync(dirPath)) {
+        return;
+    }
+
+    for (const name of fs.readdirSync(dirPath)) {
+        if (matcher.test(name)) {
+            safeRemove(path.join(dirPath, name));
+        }
+    }
+}
+
 const version = getVersion();
 const versionCode = getVersionCode(version);
 const deployDir = 'deploy';
@@ -32,6 +50,9 @@ try {
         fs.mkdirSync(deployDir);
     }
 
+    // Remove old Android deployment outputs before building.
+    cleanDeployArtifacts(deployDir, /^belair-v.*\.apk$/i);
+
     if (!fs.existsSync(sourceAndroidIcon)) {
         throw new Error(`Missing Android icon source: ${sourceAndroidIcon}`);
     }
@@ -42,7 +63,7 @@ try {
     // Prevent stale Android packaging artifacts from reusing old launcher resources.
     if (fs.existsSync(androidBuildRoot)) {
         try {
-            fs.rmSync(androidBuildRoot, { recursive: true, force: true });
+            safeRemove(androidBuildRoot);
         } catch (cleanupError) {
             console.warn(`Warning: Could not clean ${androidBuildRoot}: ${cleanupError.message}`);
         }
