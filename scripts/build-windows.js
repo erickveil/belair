@@ -12,12 +12,26 @@ const version = getVersion();
 const deployDir = 'deploy';
 const zipName = path.join(deployDir, `belair-v${version}.zip`);
 const buildDir = path.join('build', 'windows', 'x64', 'runner', 'Release');
+const windowsBuildRoot = path.join('build', 'windows');
+const sourceIcon = path.join('belair Icon', 'BelairIcon.ico');
+const runnerIcon = path.join('windows', 'runner', 'resources', 'app_icon.ico');
 
 console.log(`Building Windows Release v${version}...`);
 
 try {
     if (!fs.existsSync(deployDir)) {
         fs.mkdirSync(deployDir);
+    }
+
+    // Keep the runner icon in sync with the canonical ICO from design exports.
+    if (!fs.existsSync(sourceIcon)) {
+        throw new Error(`Missing source icon: ${sourceIcon}`);
+    }
+    fs.copyFileSync(sourceIcon, runnerIcon);
+
+    // Force a relink so the executable always embeds the latest icon.
+    if (fs.existsSync(windowsBuildRoot)) {
+        fs.rmSync(windowsBuildRoot, { recursive: true, force: true });
     }
 
     execSync('flutter build windows --release', { stdio: 'inherit' });

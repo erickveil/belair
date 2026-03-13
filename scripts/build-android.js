@@ -22,12 +22,30 @@ const deployDir = 'deploy';
 const apkName = path.join(deployDir, `belair-v${version}.apk`);
 const dummyKeyPath = 'D:\\AndroidPlayStore\\Dummy\\key.properties';
 const targetKeyPath = path.join('android', 'key.properties');
+const sourceAndroidIcon = path.join('belair Icon', 'BelairIcon-1024.png');
+const androidBuildRoot = path.join('build', 'app');
 
 console.log(`Building Android APK v${version} (versionCode: ${versionCode})...`);
 
 try {
     if (!fs.existsSync(deployDir)) {
         fs.mkdirSync(deployDir);
+    }
+
+    if (!fs.existsSync(sourceAndroidIcon)) {
+        throw new Error(`Missing Android icon source: ${sourceAndroidIcon}`);
+    }
+
+    console.log('Regenerating Android launcher icons...');
+    execSync('dart run flutter_launcher_icons', { stdio: 'inherit' });
+
+    // Prevent stale Android packaging artifacts from reusing old launcher resources.
+    if (fs.existsSync(androidBuildRoot)) {
+        try {
+            fs.rmSync(androidBuildRoot, { recursive: true, force: true });
+        } catch (cleanupError) {
+            console.warn(`Warning: Could not clean ${androidBuildRoot}: ${cleanupError.message}`);
+        }
     }
 
     // Ensure key.properties is in place for signing
