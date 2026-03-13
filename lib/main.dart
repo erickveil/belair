@@ -13,6 +13,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 
@@ -60,6 +61,7 @@ class _HomePageState extends State<HomePage> {
   bool _isTransferring = false;
   StreamSubscription<List<ReceivedFile>>? _receivedFilesSubscription;
   Set<String> _busyReceivedFilePaths = <String>{};
+  String _appVersion = '-';
 
   @override
   void initState() {
@@ -84,6 +86,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _initServices() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    _appVersion = packageInfo.version;
+
     await _notificationService.initialize();
     await _permissionService.requestPermissions();
     await _transferService.initialize();
@@ -446,6 +451,10 @@ class _HomePageState extends State<HomePage> {
                     Text(
                       _myIp ?? 'No Connection',
                       style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    Text(
+                      'Version $_appVersion',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),
