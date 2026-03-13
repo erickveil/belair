@@ -1,8 +1,5 @@
 param(
-    [Parameter(Mandatory = $true)]
     [string]$SourcePng,
-
-    [Parameter(Mandatory = $true)]
     [string]$DestinationIco
 )
 
@@ -10,6 +7,18 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 Add-Type -AssemblyName System.Drawing
+
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+if (-not $SourcePng) {
+    $SourcePng = Join-Path $repoRoot 'belair Icon\BelairIcon-1024.png'
+}
+if (-not $DestinationIco) {
+    $DestinationIco = Join-Path $repoRoot 'belair Icon\BelairIcon.ico'
+}
+
+if (-not (Test-Path -LiteralPath $SourcePng)) {
+    throw "Source PNG not found: $SourcePng"
+}
 
 # Include standard shell/taskbar sizes to avoid generic icon fallbacks.
 $sizes = @(16, 24, 32, 48, 64, 128, 256)
