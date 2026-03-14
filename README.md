@@ -24,3 +24,12 @@ Generates a signed APK (requires the dummy key at `D:\AndroidPlayStore\Dummy`).
 node scripts/build-android.js
 ```
 The version name and version code are automatically derived from `pubspec.yaml`. For example, `1.0.3` becomes versionCode `10003`.
+
+### macOS Local Build
+Generates a local macOS release build and zip archive (no distribution certificate or notarization required for local use).
+```bash
+node scripts/build-macos-local.js
+```
+Outputs:
+- `deploy/belair-v<version>.app`
+- `deploy/belair-v<version>-macos-local.zip`
