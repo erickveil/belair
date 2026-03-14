@@ -106,6 +106,9 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: false
+  macos:
+    generate: true
+    image_path: "belair Icon/BelairIcon-1024.png"
   image_path_android: "belair Icon/BelairIcon-1024.png"
   adaptive_icon_background: "#006d77"
   adaptive_icon_foreground: "belair Icon/BelairIcon-1024.png"

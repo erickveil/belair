@@ -10,5 +10,8 @@ PRODUCT_NAME = belair
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = net.erickveil.belair
 
+// Apple Developer Team ID used for code signing.
+DEVELOPMENT_TEAM = X3VALWCP53
+
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 net.erickveil. All rights reserved.
