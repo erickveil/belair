@@ -77,7 +77,8 @@ try {
         throw new Error(`Missing built app bundle: ${sourceAppBundle}`);
     }
 
-    fs.cpSync(sourceAppBundle, stagedAppBundle, { recursive: true });
+    // Use ditto to preserve framework symlink structure inside .app bundles.
+    run(`ditto "${sourceAppBundle}" "${stagedAppBundle}"`);
 
     // Preserve resource forks and keep the parent .app bundle in the archive.
     const zipCommand = `ditto -c -k --sequesterRsrc --keepParent "${stagedAppBundle}" "${zipName}"`;
