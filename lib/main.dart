@@ -46,6 +46,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final TextEditingController _ipController = TextEditingController();
+  final Map<String, Device> _rememberedDevicesByEndpoint = <String, Device>{};
   late final DiscoveryService _discoveryService;
   late final TransferService _transferService;
   late final PermissionService _permissionService;
@@ -54,9 +55,11 @@ class _HomePageState extends State<HomePage> {
 
   String? _myIp;
   Device? _myDevice;
+  List<Device> _discoveredDevices = [];
   List<Device> _devices = [];
   List<ReceivedFile> _receivedFiles = [];
   bool _isDiscovering = false;
+  bool _isRefreshingDiscovery = false;
   String? _statusMessage;
   bool _isTransferring = false;
   StreamSubscription<List<ReceivedFile>>? _receivedFilesSubscription;
@@ -80,6 +83,9 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _statusMessage = 'Received ${file.name}';
         });
+      },
+      onDeviceContact: (device) async {
+        _rememberDevice(device);
       },
     );
     _initServices();
@@ -151,27 +157,125 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
 
     // Start Discovery automatically
-    _toggleDiscovery();
+    unawaited(_setDiscoveryEnabled(true));
 
     // Listen to devices
     _discoveryService.devicesStream.listen((devices) {
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
-        _devices = devices;
+        _discoveredDevices = devices;
+        _devices = _mergeDevices(_discoveredDevices);
       });
     });
   }
 
-  void _toggleDiscovery() {
+  String _deviceEndpointKey(Device device) => '${device.ip}:${device.port}';
+
+  Device _manualDeviceFromIp(String ip) {
+    final trimmedIp = ip.trim();
+    return Device(
+      id: 'manual:$trimmedIp:8080',
+      name: 'Device at $trimmedIp',
+      ip: trimmedIp,
+      port: 8080,
+    );
+  }
+
+  List<Device> _mergeDevices(List<Device> discoveredDevices) {
+    final mergedByEndpoint = <String, Device>{
+      for (final device in _rememberedDevicesByEndpoint.values)
+        _deviceEndpointKey(device): device,
+    };
+
+    for (final device in discoveredDevices) {
+      mergedByEndpoint[_deviceEndpointKey(device)] = device;
+    }
+
+    final mergedDevices = mergedByEndpoint.values.toList();
+    mergedDevices.sort(
+      (left, right) => left.name.toLowerCase().compareTo(right.name.toLowerCase()),
+    );
+    return mergedDevices;
+  }
+
+  void _rememberDevice(Device device) {
+    if (_myDevice != null && device.id == _myDevice!.id) {
+      return;
+    }
+
+    final endpointKey = _deviceEndpointKey(device);
+    final existingDevice = _rememberedDevicesByEndpoint[endpointKey];
+    final resolvedDevice = existingDevice == null ||
+            existingDevice.name.startsWith('Device at ')
+        ? device
+        : existingDevice;
+
+    _rememberedDevicesByEndpoint[endpointKey] = resolvedDevice;
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _devices = _mergeDevices(_discoveredDevices);
+    });
+  }
+
+  Future<void> _toggleDiscovery() async {
+    await _setDiscoveryEnabled(!_isDiscovering);
+  }
+
+  Future<void> _setDiscoveryEnabled(bool enabled) async {
     if (_myDevice == null) return;
 
-    if (_isDiscovering) {
+    if (!enabled) {
       _discoveryService.stopDiscovery();
     } else {
-      _discoveryService.startDiscovery(_myDevice!);
+      await _discoveryService.startDiscovery(_myDevice!);
     }
+
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
-      _isDiscovering = !_isDiscovering;
+      _isDiscovering = enabled;
+      _statusMessage = enabled
+          ? 'Discovery active. Broadcasting every 2 seconds.'
+          : 'Discovery stopped.';
     });
+  }
+
+  Future<void> _refreshDiscovery() async {
+    if (_myDevice == null || _isRefreshingDiscovery) {
+      return;
+    }
+
+    setState(() {
+      _isRefreshingDiscovery = true;
+      _statusMessage = 'Refreshing discovery...';
+    });
+
+    try {
+      if (_isDiscovering) {
+        await _discoveryService.refreshDiscovery();
+      } else {
+        await _setDiscoveryEnabled(true);
+        return;
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshingDiscovery = false;
+          _isDiscovering = true;
+          _statusMessage =
+              'Discovery refreshed. Waiting for nearby devices to announce.';
+        });
+      }
+    }
   }
 
   Future<void> _pickAndSendFile(Device target) async {
@@ -184,7 +288,11 @@ class _HomePageState extends State<HomePage> {
         _statusMessage = "Sending ${result.files.single.name}...";
       });
 
-      String? error = await _transferService.sendFile(file, target);
+      String? error = await _transferService.sendFile(
+        file,
+        target,
+        senderDevice: _myDevice,
+      );
 
       setState(() {
         _isTransferring = false;
@@ -196,6 +304,7 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
 
       if (error == null) {
+        _rememberDevice(target);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('File Sent!')));
@@ -208,13 +317,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _sendToManualIp() async {
-    final ip = _ipController.text;
+    final ip = _ipController.text.trim();
     if (ip.isEmpty) return;
 
-    // Create a temporary device target
-    // Default port 8080 if not specified
-    // Ideally we should allow port input too, but assuming 8080 for manual entry for now
-    final target = Device(id: 'manual', name: 'Manual IP', ip: ip, port: 8080);
+    final target = _manualDeviceFromIp(ip);
 
     await _pickAndSendFile(target);
   }
@@ -425,6 +531,17 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(_isDiscovering ? Icons.radar : Icons.radar_outlined),
             onPressed: _toggleDiscovery,
             tooltip: _isDiscovering ? 'Stop Discovery' : 'Start Discovery',
+          ),
+          IconButton(
+            icon: _isRefreshingDiscovery
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            onPressed: _isRefreshingDiscovery ? null : _refreshDiscovery,
+            tooltip: 'Refresh discovery',
           ),
         ],
       ),

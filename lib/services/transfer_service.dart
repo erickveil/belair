@@ -13,6 +13,7 @@ class TransferService {
   HttpServer? _server;
   final int _port;
   final Future<void> Function(ReceivedFile file)? _onFileReceived;
+  final Future<void> Function(Device device)? _onDeviceContact;
   final StreamController<List<ReceivedFile>> _receivedFilesController =
       StreamController<List<ReceivedFile>>.broadcast();
   List<ReceivedFile> _receivedFiles = const [];
@@ -20,8 +21,10 @@ class TransferService {
   TransferService({
     int port = 8080,
     Future<void> Function(ReceivedFile file)? onFileReceived,
+    Future<void> Function(Device device)? onDeviceContact,
   }) : _port = port,
-       _onFileReceived = onFileReceived;
+       _onFileReceived = onFileReceived,
+       _onDeviceContact = onDeviceContact;
 
   int get port => _server?.port ?? _port;
   Stream<List<ReceivedFile>> get receivedFilesStream =>
@@ -39,6 +42,7 @@ class TransferService {
       final filename =
           request.headers['x-filename'] ??
           'received_file_${DateTime.now().millisecondsSinceEpoch}';
+      final senderDevice = _deviceFromRequest(request);
       debugPrint('Incoming file: $filename');
 
       try {
@@ -56,6 +60,9 @@ class TransferService {
           final receivedFile = await _refreshReceivedFiles(
             changedPath: file.path,
           );
+          if (senderDevice != null) {
+            await _onDeviceContact?.call(senderDevice);
+          }
           if (receivedFile != null) {
             await _onFileReceived?.call(receivedFile);
           }
@@ -90,12 +97,17 @@ class TransferService {
     await _receivedFilesController.close();
   }
 
-  Future<String?> sendFile(File file, Device target) async {
+  Future<String?> sendFile(File file, Device target, {Device? senderDevice}) async {
     final uri = Uri.parse('http://${target.ip}:${target.port}/upload');
     final filename = file.path.split(Platform.pathSeparator).last;
 
     final request = http.StreamedRequest('POST', uri);
     request.headers['x-filename'] = filename;
+    if (senderDevice != null) {
+      request.headers['x-device-id'] = senderDevice.id;
+      request.headers['x-device-name'] = senderDevice.name;
+      request.headers['x-device-port'] = senderDevice.port.toString();
+    }
     request.contentLength = await file.length();
 
     // Open file stream
@@ -162,6 +174,32 @@ class TransferService {
     }
 
     return null;
+  }
+
+  Device? _deviceFromRequest(Request request) {
+    final connectionInfo = request.context['shelf.io.connection_info'];
+    final remoteIp = connectionInfo is HttpConnectionInfo
+        ? connectionInfo.remoteAddress.address
+        : null;
+
+    if (remoteIp == null || remoteIp.isEmpty) {
+      return null;
+    }
+
+    final senderIdHeader = request.headers['x-device-id'];
+    final senderNameHeader = request.headers['x-device-name'];
+    final senderPort = int.tryParse(request.headers['x-device-port'] ?? '');
+
+    return Device(
+      id: senderIdHeader?.isNotEmpty == true
+          ? senderIdHeader!
+          : 'manual:$remoteIp:${senderPort ?? _port}',
+      name: senderNameHeader?.isNotEmpty == true
+          ? senderNameHeader!
+          : 'Device at $remoteIp',
+      ip: remoteIp,
+      port: senderPort ?? _port,
+    );
   }
 
   Future<Directory> _getReceivedFilesDirectory() async {

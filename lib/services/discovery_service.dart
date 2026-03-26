@@ -7,11 +7,16 @@ import 'package:flutter/foundation.dart';
 
 class DiscoveryService {
   static const int _port = 45454;
+  static const Duration _broadcastInterval = Duration(seconds: 2);
+  static const Duration _deviceTimeout = Duration(seconds: 6);
   RawDatagramSocket? _socket;
   final StreamController<List<Device>> _devicesController =
       StreamController<List<Device>>.broadcast();
   final Map<String, Device> _discoveredDevices = {};
+  final Map<String, DateTime> _lastSeenAt = {};
   Timer? _broadcastTimer;
+  Timer? _pruneTimer;
+  Device? _myDevice;
   bool _isDiscovering = false;
 
   Stream<List<Device>> get devicesStream => _devicesController.stream;
@@ -19,7 +24,10 @@ class DiscoveryService {
   Future<void> startDiscovery(Device myDevice) async {
     if (_isDiscovering) return;
     _isDiscovering = true;
+    _myDevice = myDevice;
     _discoveredDevices.clear();
+    _lastSeenAt.clear();
+    _devicesController.add(const []);
     
     try {
       _socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, _port);
@@ -34,32 +42,77 @@ class DiscoveryService {
       });
 
       _startBroadcasting(myDevice);
+      _startPruning();
     } catch (e) {
       debugPrint('Error starting discovery: $e');
       _isDiscovering = false;
     }
   }
 
-  void stopDiscovery() {
+  Future<void> refreshDiscovery() async {
+    final myDevice = _myDevice;
+    if (myDevice == null) {
+      return;
+    }
+
+    stopDiscovery(clearDevices: true);
+    await startDiscovery(myDevice);
+  }
+
+  void stopDiscovery({bool clearDevices = false}) {
     _broadcastTimer?.cancel();
+    _pruneTimer?.cancel();
     _socket?.close();
+    _socket = null;
     _isDiscovering = false;
+
+    if (clearDevices) {
+      _discoveredDevices.clear();
+      _lastSeenAt.clear();
+      _devicesController.add(const []);
+    }
   }
 
   void _startBroadcasting(Device myDevice) {
-    _broadcastTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (_socket == null) return;
-      try {
-        final data = jsonEncode(myDevice.toJson());
-        _socket!.send(
-          utf8.encode(data),
-          InternetAddress('255.255.255.255'),
-          _port,
-        );
-      } catch (e) {
-        debugPrint('Error broadcasting: $e');
-      }
+    _broadcastPresence(myDevice);
+    _broadcastTimer = Timer.periodic(_broadcastInterval, (timer) {
+      _broadcastPresence(myDevice);
     });
+  }
+
+  void _startPruning() {
+    _pruneTimer = Timer.periodic(_broadcastInterval, (timer) {
+      final cutoff = DateTime.now().subtract(_deviceTimeout);
+      final staleIds = _lastSeenAt.entries
+          .where((entry) => entry.value.isBefore(cutoff))
+          .map((entry) => entry.key)
+          .toList();
+
+      if (staleIds.isEmpty) {
+        return;
+      }
+
+      for (final id in staleIds) {
+        _lastSeenAt.remove(id);
+        _discoveredDevices.remove(id);
+      }
+
+      _devicesController.add(_discoveredDevices.values.toList());
+    });
+  }
+
+  void _broadcastPresence(Device myDevice) {
+    if (_socket == null) return;
+    try {
+      final data = jsonEncode(myDevice.toJson());
+      _socket!.send(
+        utf8.encode(data),
+        InternetAddress('255.255.255.255'),
+        _port,
+      );
+    } catch (e) {
+      debugPrint('Error broadcasting: $e');
+    }
   }
 
   void _handleIncomingData(Datagram datagram) {
@@ -87,11 +140,12 @@ class DiscoveryService {
         port: device.port,
       );
 
-      // Assuming we pass "myDevice" ID to filter self out in UI or here?
-      // Let's filter in UI or Service if we know our ID. 
-      // For now, just add everyone.
+      if (updatedDevice.id == _myDevice?.id) {
+        return;
+      }
       
       _discoveredDevices[updatedDevice.id] = updatedDevice;
+      _lastSeenAt[updatedDevice.id] = DateTime.now();
       _devicesController.add(_discoveredDevices.values.toList());
       
     } catch (e) {
