@@ -17,7 +17,7 @@ function run(command, options = {}) {
 
 function parseArgs(argv) {
     const args = {
-        mode: 'debug',
+        mode: 'release',
         deviceHint: null,
     };
 
@@ -88,6 +88,12 @@ function main() {
     }
 
     const { mode, deviceHint } = parseArgs(process.argv.slice(2));
+
+    if (mode === 'debug') {
+        console.warn(
+            'Warning: debug builds cannot be launched from the iOS home screen. Use --profile or --release for a relaunchable install.'
+        );
+    }
 
     console.log('Checking toolchain...');
     run('pod --version');
