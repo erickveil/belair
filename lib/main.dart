@@ -440,6 +440,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  String _receivedFilesEmptyDescription() {
+    if (Platform.isAndroid) {
+      return 'Files received here stay until you open, share, delete, or save them to Downloads.';
+    }
+    return 'Files received here stay until you open, share, or delete them.';
+  }
+
   Widget _buildReceivedFilesContent({required bool constrainHeight}) {
     final fileList = _receivedFiles.isEmpty
         ? const Text('No received files yet.')
@@ -459,7 +466,7 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 4),
         Text(
           _receivedFiles.isEmpty
-              ? 'Files received on Android stay here until you open, share, delete, or save them to Downloads.'
+              ? _receivedFilesEmptyDescription()
               : '${_receivedFiles.length} file${_receivedFiles.length == 1 ? '' : 's'} ready.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
@@ -495,12 +502,13 @@ class _HomePageState extends State<HomePage> {
               onPressed: () => _openReceivedFile(file),
               child: const Text('Open'),
             ),
-            FilledButton.tonal(
-              onPressed: isBusy
-                  ? null
-                  : () => _saveReceivedFileToDownloads(file),
-              child: Text(isBusy ? 'Saving...' : 'Save to Downloads'),
-            ),
+            if (Platform.isAndroid)
+              FilledButton.tonal(
+                onPressed: isBusy
+                    ? null
+                    : () => _saveReceivedFileToDownloads(file),
+                child: Text(isBusy ? 'Saving...' : 'Save to Downloads'),
+              ),
             OutlinedButton(
               onPressed: () => _shareReceivedFile(file),
               child: const Text('Share'),
@@ -521,7 +529,7 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text('Belair'),
         actions: [
-          if (Platform.isAndroid)
+          if (Platform.isAndroid || Platform.isIOS)
             IconButton(
               icon: const Icon(Icons.inbox_outlined),
               onPressed: _showReceivedFilesSheet,
@@ -624,7 +632,7 @@ class _HomePageState extends State<HomePage> {
 
           const Divider(),
 
-          if (Platform.isAndroid)
+          if (Platform.isAndroid || Platform.isIOS)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: _buildReceivedFilesCard(),
