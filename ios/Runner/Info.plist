@@ -10,6 +10,10 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Belair needs access to the local network to discover and send files to nearby devices.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_belair._tcp</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

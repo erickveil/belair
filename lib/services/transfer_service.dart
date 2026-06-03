@@ -27,6 +27,7 @@ class TransferService {
        _onDeviceContact = onDeviceContact;
 
   int get port => _server?.port ?? _port;
+  bool get isRunning => _server != null;
   Stream<List<ReceivedFile>> get receivedFilesStream =>
       _receivedFilesController.stream;
   List<ReceivedFile> get receivedFiles => List.unmodifiable(_receivedFiles);
@@ -36,6 +37,8 @@ class TransferService {
   }
 
   Future<void> startServer() async {
+    if (_server != null) return;
+
     final router = Router();
 
     router.post('/upload', (Request request) async {
@@ -85,12 +88,18 @@ class TransferService {
         .addMiddleware(logRequests())
         .addHandler(router.call);
 
-    _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, _port);
-    debugPrint('Serving at http://${_server!.address.host}:${_server!.port}');
+    try {
+      _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, _port);
+      debugPrint('Server listening on http://${_server!.address.host}:${_server!.port}');
+    } catch (e, stack) {
+      debugPrint('Failed to start server on port $_port: $e\n$stack');
+      rethrow;
+    }
   }
 
   Future<void> stopServer() async {
     await _server?.close();
+    _server = null;
   }
 
   Future<void> dispose() async {
