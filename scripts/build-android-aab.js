@@ -38,7 +38,7 @@ const version = getVersion();
 const versionCode = getVersionCode(version);
 const deployDir = 'deploy';
 const aabName = path.join(deployDir, `belair-v${version}.aab`);
-const dummyKeyPath = 'D:\\AndroidPlayStore\\Dummy\\key.properties';
+const dummyKeyPath = 'D:\\AndroidPlayStore\\belair\\key.properties';
 const targetKeyPath = path.join('android', 'key.properties');
 const sourceAndroidIcon = path.join('belair Icon', 'BelairIcon-1024.png');
 const androidBuildRoot = path.join('build', 'app');
@@ -67,6 +67,20 @@ try {
         }
     }
 
+    // Kill lingering Java/Gradle processes that might hold lint cache locks.
+    try { execSync('taskkill /f /im java.exe', { stdio: 'pipe' }); } catch (_) {}
+    try { execSync('taskkill /f /im gradle.exe', { stdio: 'pipe' }); } catch (_) {}
+
+    // Clean lint cache to avoid stale file locks.
+    const lintCache = path.join('build', 'app', 'intermediates', 'lint-cache');
+    if (fs.existsSync(lintCache)) {
+        try {
+            safeRemove(lintCache);
+        } catch (cleanupError) {
+            console.warn(`Warning: Could not clean lint cache: ${cleanupError.message}`);
+        }
+    }
+
     if (fs.existsSync(dummyKeyPath)) {
         console.log(`Copying and fixing signing properties from ${dummyKeyPath}...`);
         let content = fs.readFileSync(dummyKeyPath, 'utf8');
@@ -75,7 +89,7 @@ try {
         });
         fs.writeFileSync(targetKeyPath, content);
     } else {
-        console.warn(`Warning: Dummy key not found at ${dummyKeyPath}. Build might not be signed.`);
+        console.warn(`Warning: Belair key not found at ${dummyKeyPath}. Build might not be signed.`);
     }
 
     const buildCommand = `flutter build appbundle --release --build-name=${version} --build-number=${versionCode}`;
