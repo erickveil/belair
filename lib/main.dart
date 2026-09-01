@@ -44,7 +44,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final TextEditingController _ipController = TextEditingController();
   final Map<String, Device> _rememberedDevicesByEndpoint = <String, Device>{};
   late final DiscoveryService _discoveryService;
@@ -69,6 +69,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _discoveryService = DiscoveryService();
     _permissionService = PermissionService();
     _notificationService = NotificationService();
@@ -327,12 +328,29 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _receivedFilesSubscription?.cancel();
     _discoveryService.stopDiscovery();
     _transferService.stopServer();
     _transferService.dispose();
     _ipController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && Platform.isIOS) {
+      _restartServerIfNeeded();
+    }
+  }
+
+  Future<void> _restartServerIfNeeded() async {
+    if (_transferService.isRunning) return;
+    try {
+      await _transferService.startServer();
+    } catch (e) {
+      debugPrint('Could not restart server after resume: $e');
+    }
   }
 
   Future<void> _openReceivedFile(ReceivedFile file) async {
